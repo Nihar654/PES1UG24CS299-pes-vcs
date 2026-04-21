@@ -10,6 +10,7 @@
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 
 #include "tree.h"
+#include "index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -129,9 +130,81 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+
+static int build_tree_recursive(Index *idx, const char *prefix, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    char seen_dirs[MAX_INDEX_ENTRIES][256];
+    int seen_count = 0;
+    size_t prefix_len = strlen(prefix);
+
+    for (int i = 0; i < idx->count; i++) {
+        const char *path = idx->entries[i].path;
+
+        // Skip entries not under this prefix
+        if (strncmp(path, prefix, prefix_len) != 0) continue;
+
+        // Remainder after stripping prefix
+        const char *rel = path + prefix_len;
+
+        char *slash = strchr(rel, '/');
+
+        if (slash == NULL) {
+            // Direct file in this directory — add as blob entry
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = idx->entries[i].mode;
+            strncpy(e->name, rel, sizeof(e->name) - 1);
+            e->name[sizeof(e->name) - 1] = '\0';
+            e->hash = idx->entries[i].hash;
+        } else {
+            // File belongs to a subdirectory — extract subdir name
+            char subdir[256];
+            size_t subdir_len = slash - rel;
+            strncpy(subdir, rel, subdir_len);
+            subdir[subdir_len] = '\0';
+
+            // Skip if we've already processed this subdir
+            int already_seen = 0;
+            for (int j = 0; j < seen_count; j++) {
+                if (strcmp(seen_dirs[j], subdir) == 0) {
+                    already_seen = 1;
+                    break;
+                }
+            }
+            if (already_seen) continue;
+
+            strcpy(seen_dirs[seen_count++], subdir);
+
+            // Recurse to build the subtree
+            char new_prefix[512];
+            snprintf(new_prefix, sizeof(new_prefix), "%s%s/", prefix, subdir);
+
+            ObjectID sub_id;
+            if (build_tree_recursive(idx, new_prefix, &sub_id) != 0)
+                return -1;
+
+            // Add subtree as a directory entry
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = MODE_DIR;
+            strncpy(e->name, subdir, sizeof(e->name) - 1);
+            e->name[sizeof(e->name) - 1] = '\0';
+            e->hash = sub_id;
+        }
+    }
+
+    // Serialize and write this tree to the object store
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+
+    int rc = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return rc;
+}
+
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
-    (void)id_out;
-    return -1;
+    Index idx;
+    if (index_load(&idx) != 0) return -1;
+    return build_tree_recursive(&idx, "", id_out);
 }
