@@ -141,6 +141,12 @@ static int compare_index_entries(const void *a, const void *b) {
     return strcmp(((const IndexEntry *)a)->path, ((const IndexEntry *)b)->path);
 }
 
+// The index file uses a simple human-readable text format, one entry per line:
+//   <mode-octal> <64-char-hex-hash> <mtime-seconds> <size-bytes> <path>
+//
+// Keeping it as plain text (vs binary) makes it easy to inspect with cat,
+// simplifies parsing, and avoids endianness issues. The trade-off is
+// slightly larger file size compared to a binary format.
 int index_load(Index *index) {
     index->count = 0;
 
