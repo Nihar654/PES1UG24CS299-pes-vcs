@@ -24,6 +24,9 @@
 #include <unistd.h>
 #include <dirent.h>
 
+// Forward declaration
+int index_save(const Index *index);
+
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 // Find an index entry by path (linear scan).
@@ -142,12 +145,12 @@ int index_load(Index *index) {
     index->count = 0;
 
     FILE *f = fopen(INDEX_FILE, "r");
-    if (!f) return 0; // No index yet — empty index is fine
+    if (!f) return 0;  // No index file yet = empty index, not an error
 
     char hex[HASH_HEX_SIZE + 1];
     while (index->count < MAX_INDEX_ENTRIES) {
         IndexEntry *e = &index->entries[index->count];
-        int rc = fscanf(f, "%o %64s %ld %zu %255s",
+        int rc = fscanf(f, "%o %64s %ld %u %511s",
                         &e->mode, hex,
                         &e->mtime_sec, &e->size, e->path);
         if (rc == EOF) break;
@@ -171,23 +174,24 @@ int index_load(Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_save(const Index *index) {
-    // Sort entries by path before writing
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), compare_index_entries);
-
-    // Write to temp file first
     char tmp_path[] = INDEX_FILE ".tmp";
     FILE *f = fopen(tmp_path, "w");
     if (!f) return -1;
 
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted) { fclose(f); return -1; }
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), compare_index_entries);
+
     char hex[HASH_HEX_SIZE + 1];
-    for (int i = 0; i < sorted.count; i++) {
-        IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < sorted->count; i++) {
+        IndexEntry *e = &sorted->entries[i];
         hash_to_hex(&e->hash, hex);
-        fprintf(f, "%o %s %ld %zu %s\n",
+        fprintf(f, "%o %s %ld %u %s\n",
                 e->mode, hex, e->mtime_sec, e->size, e->path);
     }
 
+    free(sorted);
     fflush(f);
     fsync(fileno(f));
     fclose(f);
@@ -205,8 +209,54 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
-    return -1;
+    // 1. Read file contents
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "error: cannot open '%s'\n", path);
+        return -1;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    void *contents = malloc(file_size);
+    if (!contents) { fclose(f); return -1; }
+
+    if ((long)fread(contents, 1, file_size, f) != file_size) {
+        free(contents); fclose(f); return -1;
+    }
+    fclose(f);
+
+    // 2. Write blob to object store
+    ObjectID hash;
+    if (object_write(OBJ_BLOB, contents, file_size, &hash) != 0) {
+        free(contents); return -1;
+    }
+    free(contents);
+
+    // 3. Get file metadata
+    struct stat st;
+    if (stat(path, &st) != 0) return -1;
+
+    // 4. Find existing entry or create new one
+    IndexEntry *entry = index_find(index, path);
+    if (!entry) {
+        if (index->count >= MAX_INDEX_ENTRIES) {
+            fprintf(stderr, "error: index full\n");
+            return -1;
+        }
+        entry = &index->entries[index->count++];
+    }
+
+    // 5. Fill in the entry
+    strncpy(entry->path, path, sizeof(entry->path) - 1);
+    entry->path[sizeof(entry->path) - 1] = '\0';
+    entry->hash     = hash;
+    entry->mode     = (st.st_mode & S_IXUSR) ? 0100755 : 0100644;
+    entry->size     = st.st_size;
+    entry->mtime_sec = st.st_mtime;
+
+    // 6. Save index atomically
+    return index_save(index);
 }
