@@ -140,6 +140,10 @@ static int build_tree_recursive(Index *idx, const char *prefix, ObjectID *id_out
     Tree tree;
     tree.count = 0;
 
+    // heap-allocate seen_dirs instead of declaring it on the stack.
+    // A stack declaration of char[MAX_INDEX_ENTRIES][256] can exceed the
+    // default 8MB stack limit and cause a segfault on large indexes.
+    // Heap allocation avoids this entirely.
     char (*seen_dirs)[256] = malloc(MAX_INDEX_ENTRIES * 256);
     int seen_count = 0;
     size_t prefix_len = strlen(prefix);
