@@ -217,6 +217,10 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     }
 
     // 2. Read current HEAD as parent (may not exist for first commit)
+    // Try to read the current HEAD commit as the parent.
+    // head_read() returns -1 if no commits exist yet (empty repo),
+    // in which case has_parent stays 0 and the commit field is left
+    // zeroed. This is the correct behavior for the initial commit.    
     if (head_read(&c.parent) == 0) {
         c.has_parent = 1;
     } else {
