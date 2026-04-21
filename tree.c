@@ -168,6 +168,10 @@ static int build_tree_recursive(Index *idx, const char *prefix, ObjectID *id_out
 
         if (slash == NULL) {
             // Direct file in this directory — add as blob entry
+            // Subtrees are stored with mode 040000 (MODE_DIR).
+            // The hash points to another tree object, not a blob.
+            // This creates the recursive structure: commit -> root tree
+            // -> subtrees -> blobs, mirroring the actual directory hierarchy.            
             TreeEntry *e = &tree.entries[tree.count++];
             e->mode = idx->entries[i].mode;
             strncpy(e->name, rel, sizeof(e->name) - 1);
