@@ -248,6 +248,10 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     free(data);
 
     // 7. Update HEAD to point to the new commit
+    // Update the branch ref atomically. head_update() follows the symbolic
+    // ref in HEAD (e.g. "ref: refs/heads/main") and overwrites that file
+    // with the new commit hash using temp+rename. HEAD itself never changes
+    // during a normal commit — it always points to the current branch name.    
     if (head_update(&commit_id) != 0) {
         fprintf(stderr, "error: failed to update HEAD\n");
         return -1;
