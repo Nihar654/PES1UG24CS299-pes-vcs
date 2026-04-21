@@ -193,6 +193,19 @@ int head_update(const ObjectID *new_commit) {
 //   - head_update       : moves the branch pointer to your new commit
 //
 // Returns 0 on success, -1 on error.
+
+// Commit text format stored in the object store:
+//
+//   tree <64-char-hex>
+//   parent <64-char-hex>     <- omitted for the root commit
+//   author <name> <unix-ts>
+//   committer <name> <unix-ts>
+//
+//   <message>
+//
+// The blank line between headers and message mirrors the email/RFC 2822
+// convention that Git itself follows. The parent field creates a linked
+// list of history: each commit points to its predecessor.
 int commit_create(const char *message, ObjectID *commit_id_out) {
     Commit c;
     memset(&c, 0, sizeof(c));
