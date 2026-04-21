@@ -118,6 +118,10 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     compute_hash(full, total, id_out);
 
     // 4. Deduplication — already stored? Done.
+    // Deduplication: if an object with this hash already exists, skip the
+    // write entirely. Because object names ARE their content hash, identical
+    // content always produces the same hash and therefore the same path.
+    // This is what makes Git storage efficient across commits.
     if (object_exists(id_out)) {
         free(full);
         return 0;
