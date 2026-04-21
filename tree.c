@@ -131,6 +131,11 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //
 // Returns 0 on success, -1 on error.
 
+// Recursively builds a tree object for a given directory prefix.
+// Called with prefix="" for the root. For a path like "src/main.c",
+// the root call sees prefix="" and finds a slash, so it recurses with
+// prefix="src/" to build the subtree, then adds it as a MODE_DIR entry.
+// This mirrors how Git constructs tree objects from a flat index.
 static int build_tree_recursive(Index *idx, const char *prefix, ObjectID *id_out) {
     Tree tree;
     tree.count = 0;
