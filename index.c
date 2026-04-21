@@ -179,6 +179,7 @@ int index_load(Index *index) {
 //   - rename                           : atomically moving the temp file over the old index
 //
 // Returns 0 on success, -1 on error.
+
 int index_save(const Index *index) {
     char tmp_path[] = INDEX_FILE ".tmp";
     FILE *f = fopen(tmp_path, "w");
@@ -201,7 +202,11 @@ int index_save(const Index *index) {
     fflush(f);
     fsync(fileno(f));
     fclose(f);
-
+    
+    // Atomic save: write to INDEX_FILE.tmp first, fsync to flush kernel
+    // buffers to disk, then rename() atomically over the real index file.
+    // If the process crashes before rename(), the old index is untouched.
+    // If it crashes after, the new index is complete and valid.
     return rename(tmp_path, INDEX_FILE);
 }
 
