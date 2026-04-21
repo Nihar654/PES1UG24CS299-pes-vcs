@@ -81,6 +81,10 @@ int index_status(const Index *index) {
             unstaged_count++;
         } else {
             // Fast diff: check metadata instead of re-hashing file content
+        // Fast diff: compare mtime and size from the index entry against
+        // the live stat() of the file. If either differs, the file has
+        // likely been modified. This avoids re-reading and re-hashing the
+        // entire file for every status check, matching Git's own approach.
             if (st.st_mtime != (time_t)index->entries[i].mtime_sec || st.st_size != (off_t)index->entries[i].size) {
                 printf("  modified:   %s\n", index->entries[i].path);
                 unstaged_count++;
