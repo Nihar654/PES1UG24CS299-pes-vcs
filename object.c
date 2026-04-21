@@ -151,6 +151,10 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     close(fd);
     free(full);
 
+    // Atomic write: write to a temp file first, then rename() into place.
+    // On POSIX systems, rename() is guaranteed atomic — readers will see
+    // either the old file or the new file, never a partial write.
+    // This prevents corruption if the process crashes mid-write.
     if (rename(tmp_path, final_path) != 0) return -1;
 
     // 9. fsync the shard directory to persist the rename
