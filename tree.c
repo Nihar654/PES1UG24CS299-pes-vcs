@@ -135,7 +135,7 @@ static int build_tree_recursive(Index *idx, const char *prefix, ObjectID *id_out
     Tree tree;
     tree.count = 0;
 
-    char seen_dirs[MAX_INDEX_ENTRIES][256];
+    char (*seen_dirs)[256] = malloc(MAX_INDEX_ENTRIES * 256);
     int seen_count = 0;
     size_t prefix_len = strlen(prefix);
 
