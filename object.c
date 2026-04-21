@@ -93,6 +93,12 @@ int object_exists(const ObjectID *id) {
 
 //
 // Returns 0 on success, -1 on error.
+
+// Directory sharding: objects are stored under .pes/objects/XX/YYY...
+// where XX is the first 2 hex chars of the hash. This prevents any single
+// directory from growing too large (e.g. 100k files), which degrades
+// filesystem performance on most OSes. With 256 possible shard dirs,
+// each directory holds ~1/256 of all objects on average.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
     // 1. Build header: "blob 16\0" etc.
     const char *type_str = (type == OBJ_BLOB) ? "blob" :
