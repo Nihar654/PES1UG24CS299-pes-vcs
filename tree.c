@@ -87,6 +87,13 @@ static int compare_tree_entries(const void *a, const void *b) {
 // Serialize a Tree struct into binary format for storage.
 // Caller must free(*data_out).
 // Returns 0 on success, -1 on error.
+// Binary tree format written per entry (no separators between entries):
+//   "<mode-octal> <name>\0<32-byte-binary-hash>"
+//
+// Mode is written as ASCII octal (e.g. "100644"), followed by a space,
+// followed by the entry name, followed by a null byte, followed by the
+// raw 32-byte SHA-256 hash. Entries are sorted by name before serializing
+// to ensure identical trees always produce identical hashes.
 int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
     // Estimate max size: (6 bytes mode + 1 byte space + 256 bytes name + 1 byte null + 32 bytes hash) per entry
     size_t max_size = tree->count * 296; 
