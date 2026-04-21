@@ -213,6 +213,10 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     // 3. Integrity check — recompute hash and compare
     ObjectID computed;
     compute_hash(buf, file_size, &computed);
+    // Integrity check: recompute the SHA-256 of the entire file contents
+    // and compare against the hash encoded in the filename. If they differ,
+    // the object has been corrupted on disk (bit rot, partial write, etc.)
+    // and we refuse to return bad data to the caller.
     if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) {
         free(buf);
         return -1; // corruption detected
