@@ -223,6 +223,14 @@ int index_save(const Index *index) {
 //   - index_find                       : checking if the file is already staged
 //
 // Returns 0 on success, -1 on error.
+
+// Stages a file by:
+//   1. Reading its contents and writing them as a blob object (content-addressed)
+//   2. Recording the blob hash + file metadata in the index entry
+//   3. Saving the updated index atomically
+//
+// If the file is already staged, its entry is updated in-place (re-staging
+// picks up any changes made since the last add).
 int index_add(Index *index, const char *path) {
     // 1. Read file contents
     FILE *f = fopen(path, "rb");
